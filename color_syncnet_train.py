@@ -24,6 +24,8 @@ parser.add_argument("--data_root", help="Root folder of the preprocessed LRS2 da
 
 parser.add_argument('--checkpoint_dir', help='Save checkpoints to this directory', required=True, type=str)
 parser.add_argument('--checkpoint_path', help='Resumed from this checkpoint', default=None, type=str)
+parser.add_argument('--model_name', help='Model name for wandb.ai', default="syncnet", type=str)
+
 
 args = parser.parse_args()
 
@@ -177,14 +179,14 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
             if global_step % hparams.syncnet_eval_interval == 0:
                 with torch.no_grad():
                     val_loss = eval_model(test_data_loader, global_step, device, model, checkpoint_dir)
-
+                    wandb.log({
+                      'train_loss': running_loss / (step + 1),
+                      'val_loss': val_loss,
+                      'lr': optimizer.param_groups[0]['lr']
+                    })
             prog_bar.set_description('Loss: {}'.format(running_loss / (step + 1)))
             
-            wandb.log({
-                'train_loss': running_loss / (step + 1),
-                'val_loss': val_loss,
-                'lr': optimizer.param_groups[0]['lr']
-                })
+            
 
         global_epoch += 1
 
@@ -269,7 +271,7 @@ if __name__ == "__main__":
 
     test_data_loader = data_utils.DataLoader(
         test_dataset, batch_size=hparams.syncnet_batch_size,
-        num_workers=8)
+        num_workers=hparams.num_workers)
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
@@ -284,7 +286,7 @@ if __name__ == "__main__":
         load_checkpoint(checkpoint_path, model, optimizer, reset_optimizer=False)
 
     # init wandb
-    wandb.init(project="my-test-project", entity="looloo", name="syncnet")
+    wandb.init(project="my-test-project", entity="looloo", name=args.model_name)
     wandb.config = {
         "learning_rate": hparams.syncnet_lr,
         "epochs": hparams.nepochs,
